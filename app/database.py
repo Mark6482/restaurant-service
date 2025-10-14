@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://root:root@localhost/restaurant_service")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://camunda:camunda@localhost/restaurant_service")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
