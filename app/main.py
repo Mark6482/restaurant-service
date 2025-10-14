@@ -34,12 +34,29 @@ async def shutdown_event():
 # Restaurant endpoints
 @app.get("/restaurants", response_model=List[Restaurant])
 async def read_restaurants(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Получить список ресторанов"""
     restaurants = await get_restaurants(db, skip=skip, limit=limit)
     return restaurants
 
 @app.post("/restaurants", response_model=Restaurant, status_code=status.HTTP_201_CREATED)
 async def create_new_restaurant(restaurant: RestaurantCreate, db: AsyncSession = Depends(get_db)):
-    return await create_restaurant(db, restaurant)
+    """Создать новый ресторан"""
+    created_restaurant = await create_restaurant(db, restaurant)
+    
+    # Отправляем событие о создании ресторана
+    restaurant_data = {
+        "restaurant_id": created_restaurant.id,
+        "name": created_restaurant.name,
+        "description": created_restaurant.description,
+        "address": created_restaurant.address,
+        "phone": created_restaurant.phone,
+        "email": str(created_restaurant.email),
+        "opening_hours": created_restaurant.opening_hours,
+        "is_active": created_restaurant.is_active
+    }
+    await event_producer.send_restaurant_created(restaurant_data)
+    
+    return created_restaurant
 
 @app.put("/restaurants/{restaurant_id}", response_model=Restaurant)
 async def update_restaurant_endpoint(
@@ -47,6 +64,7 @@ async def update_restaurant_endpoint(
     restaurant_update: RestaurantUpdate, 
     db: AsyncSession = Depends(get_db)
 ):
+    """Обновить информацию о ресторане"""
     db_restaurant = await update_restaurant(db, restaurant_id, restaurant_update)
     if db_restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -54,6 +72,7 @@ async def update_restaurant_endpoint(
 
 @app.delete("/restaurants/{restaurant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_restaurant_by_id(restaurant_id: int, db: AsyncSession = Depends(get_db)):
+    """Удалить ресторан"""
     db_restaurant = await delete_restaurant(db, restaurant_id)
     if db_restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -61,6 +80,7 @@ async def delete_restaurant_by_id(restaurant_id: int, db: AsyncSession = Depends
 # Menu endpoints
 @app.get("/restaurants/{restaurant_id}/menu", response_model=RestaurantWithMenu)
 async def read_restaurant_menu(restaurant_id: int, db: AsyncSession = Depends(get_db)):
+    """Получить полное меню ресторана с категориями и блюдами"""
     restaurant = await get_restaurant_with_menu(db, restaurant_id)
     if restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -68,6 +88,7 @@ async def read_restaurant_menu(restaurant_id: int, db: AsyncSession = Depends(ge
 
 @app.get("/restaurants/{restaurant_id}/menu/categories", response_model=List[MenuCategory])
 async def read_menu_categories(restaurant_id: int, db: AsyncSession = Depends(get_db)):
+    """Получить категории меню ресторана"""
     categories = await get_menu_categories(db, restaurant_id)
     return categories
 
@@ -75,6 +96,7 @@ async def read_menu_categories(restaurant_id: int, db: AsyncSession = Depends(ge
 async def create_menu_category_for_restaurant(
     restaurant_id: int, category: MenuCategoryCreate, db: AsyncSession = Depends(get_db)
 ):
+    """Создать категорию меню для ресторана"""
     restaurant = await get_restaurant(db, restaurant_id)
     if restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -87,14 +109,17 @@ async def update_menu_category_endpoint(
     category_update: MenuCategoryUpdate,
     db: AsyncSession = Depends(get_db)
 ):
+    """Обновить категорию меню"""
     # Проверяем, что категория принадлежит ресторану
     category = await get_menu_category(db, category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Category not found in this restaurant")
     
-    # В реальной реализации добавим функцию update_menu_category в CRUD
-    # Пока используем существующую логику
-    return category
+    updated_category = await update_menu_category(db, category_id, category_update)
+    if updated_category is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    return updated_category
 
 @app.delete("/restaurants/{restaurant_id}/menu/categories/{category_id}", response_model=DeleteResponse)
 async def delete_menu_category_endpoint(
@@ -103,6 +128,7 @@ async def delete_menu_category_endpoint(
     force: bool = False,
     db: AsyncSession = Depends(get_db)
 ):
+    """Удалить категорию меню"""
     try:
         deleted_category = await delete_menu_category(db, restaurant_id, category_id, force)
         if deleted_category:
@@ -127,11 +153,12 @@ async def delete_menu_category_endpoint(
 # Dish endpoints
 @app.get("/restaurants/{restaurant_id}/menu/dishes/{dish_id}", response_model=Dish)
 async def read_dish(restaurant_id: int, dish_id: int, db: AsyncSession = Depends(get_db)):
+    """Получить информацию о блюде"""
     dish = await get_dish(db, dish_id)
     if dish is None:
         raise HTTPException(status_code=404, detail="Dish not found")
     
-    # Verify dish belongs to restaurant
+    # Проверяем, что блюдо принадлежит ресторану
     category = await get_menu_category(db, dish.category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Dish not found in this restaurant")
@@ -144,7 +171,8 @@ async def read_dishes_in_category(
     category_id: int, 
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify category belongs to restaurant
+    """Получить блюда в категории"""
+    # Проверяем, что категория принадлежит ресторану
     category = await get_menu_category(db, category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Category not found in this restaurant")
@@ -155,55 +183,110 @@ async def read_dishes_in_category(
 async def create_dish_for_category(
     restaurant_id: int, category_id: int, dish: DishCreate, db: AsyncSession = Depends(get_db)
 ):
-    # Verify category belongs to restaurant
+    """Создать блюдо в категории"""
+    # Проверяем, что категория принадлежит ресторану
     category = await get_menu_category(db, category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Category not found in this restaurant")
     
-    return await create_dish(db, category_id, dish)
+    created_dish = await create_dish(db, category_id, dish)
+    
+    # Отправляем событие о создании блюда
+    dish_data = {
+        "dish_id": created_dish.id,
+        "restaurant_id": restaurant_id,
+        "category_id": category_id,
+        "name": created_dish.name,
+        "description": created_dish.description,
+        "price": float(created_dish.price),
+        "is_available": created_dish.is_available,
+        "image_url": created_dish.image_url,
+        "preparation_time": created_dish.preparation_time,
+        "ingredients": created_dish.ingredients,
+        "allergens": created_dish.allergens
+    }
+    await event_producer.send_dish_created(dish_data)
+    
+    return created_dish
 
 @app.put("/restaurants/{restaurant_id}/menu/dishes/{dish_id}", response_model=Dish)
 async def update_dish_in_menu(
     restaurant_id: int, dish_id: int, dish_update: DishUpdate, db: AsyncSession = Depends(get_db)
 ):
+    """Обновить информацию о блюде"""
     dish = await get_dish(db, dish_id)
     if dish is None:
         raise HTTPException(status_code=404, detail="Dish not found")
     
-    # Verify dish belongs to restaurant
+    # Проверяем, что блюдо принадлежит ресторану
     category = await get_menu_category(db, dish.category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Dish not found in this restaurant")
     
-    return await update_dish(db, dish_id, dish_update)
+    updated_dish = await update_dish(db, dish_id, dish_update)
+    
+    # Отправляем событие об обновлении блюда
+    dish_data = {
+        "dish_id": updated_dish.id,
+        "restaurant_id": restaurant_id,
+        "category_id": updated_dish.category_id,
+        "name": updated_dish.name,
+        "description": updated_dish.description,
+        "price": float(updated_dish.price),
+        "is_available": updated_dish.is_available,
+        "image_url": updated_dish.image_url,
+        "preparation_time": updated_dish.preparation_time,
+        "ingredients": updated_dish.ingredients,
+        "allergens": updated_dish.allergens
+    }
+    await event_producer.send_dish_updated(dish_data)
+    
+    return updated_dish
 
 @app.put("/restaurants/{restaurant_id}/menu/dishes/{dish_id}/availability", response_model=Dish)
 async def update_dish_availability_status(
     restaurant_id: int, dish_id: int, availability: DishAvailability, db: AsyncSession = Depends(get_db)
 ):
+    """Обновить доступность блюда"""
     dish = await get_dish(db, dish_id)
     if dish is None:
         raise HTTPException(status_code=404, detail="Dish not found")
     
-    # Verify dish belongs to restaurant
+    # Проверяем, что блюдо принадлежит ресторану
     category = await get_menu_category(db, dish.category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Dish not found in this restaurant")
     
-    return await update_dish_availability(db, dish_id, availability)
+    updated_dish = await update_dish_availability(db, dish_id, availability)
+    
+    # Отправляем событие об изменении доступности
+    dish_data = {
+        "dish_id": updated_dish.id,
+        "restaurant_id": restaurant_id,
+        "is_available": updated_dish.is_available
+    }
+    await event_producer.send_dish_availability_changed(dish_data)
+    
+    return updated_dish
 
 @app.delete("/restaurants/{restaurant_id}/menu/dishes/{dish_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_dish_from_menu(restaurant_id: int, dish_id: int, db: AsyncSession = Depends(get_db)):
+    """Удалить блюдо из меню"""
     dish = await get_dish(db, dish_id)
     if dish is None:
         raise HTTPException(status_code=404, detail="Dish not found")
     
-    # Verify dish belongs to restaurant
+    # Проверяем, что блюдо принадлежит ресторану
     category = await get_menu_category(db, dish.category_id)
     if category is None or category.restaurant_id != restaurant_id:
         raise HTTPException(status_code=404, detail="Dish not found in this restaurant")
     
     await delete_dish(db, dish_id)
+
+@app.get("/health")
+async def health_check():
+    """Проверка здоровья сервиса"""
+    return {"status": "healthy", "service": "restaurant-service"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
