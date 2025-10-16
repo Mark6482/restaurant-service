@@ -175,6 +175,29 @@ async def get_menu_category(db: AsyncSession, category_id: int):
     return result.scalar_one_or_none()
 
 async def create_menu_category(db: AsyncSession, restaurant_id: int, category: MenuCategoryCreate):
+    # Uniqueness: prevent duplicate category names per restaurant
+    existing_q = await db.execute(
+        select(MenuCategory).filter(
+            MenuCategory.restaurant_id == restaurant_id,
+            MenuCategory.name == category.name
+        )
+    )
+    existing = existing_q.scalar_one_or_none()
+    if existing:
+        return None
+
+    # Also ensure order_index is unique within the same restaurant
+    existing_idx_q = await db.execute(
+        select(MenuCategory).filter(
+            MenuCategory.restaurant_id == restaurant_id,
+            MenuCategory.order_index == category.order_index
+        )
+    )
+    existing_idx = existing_idx_q.scalar_one_or_none()
+    if existing_idx:
+        # Use a sentinel object with id None to indicate unique index violation (handled in endpoint)
+        return False
+
     db_category = MenuCategory(restaurant_id=restaurant_id, **category.dict())
     db.add(db_category)
     await db.commit()

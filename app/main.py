@@ -78,7 +78,12 @@ async def create_menu_category_for_restaurant(
     restaurant = await get_restaurant(db, restaurant_id)
     if restaurant is None:
         raise HTTPException(status_code=404, detail="Restaurant not found")
-    return await create_menu_category(db, restaurant_id, category)
+    created = await create_menu_category(db, restaurant_id, category)
+    if created is None:
+        raise HTTPException(status_code=400, detail="Category with this name already exists for this restaurant")
+    if created is False:
+        raise HTTPException(status_code=400, detail="Category with this order_index already exists for this restaurant")
+    return created
 
 @app.put("/restaurants/{restaurant_id}/menu/categories/{category_id}", response_model=MenuCategory)
 async def update_menu_category_endpoint(
