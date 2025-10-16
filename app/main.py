@@ -205,5 +205,10 @@ async def delete_dish_from_menu(restaurant_id: int, dish_id: int, db: AsyncSessi
     
     await delete_dish(db, dish_id)
 
+@app.get("/health")
+async def health_check():
+    """Проверка здоровья сервиса"""
+    return {"status": "healthy", "service": "restaurant-service"}
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)

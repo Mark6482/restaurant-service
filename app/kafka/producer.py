@@ -97,5 +97,24 @@ class KafkaEventProducer:
         except Exception as e:
             logger.error(f"Failed to send restaurant created event: {e}")
 
+    async def send_dish_deleted(self, dish_data: dict):
+        """Отправка события удаления блюда"""
+        event = {
+            "event_id": str(uuid.uuid4()),
+            "event_type": "dish.deleted",
+            "timestamp": datetime.utcnow().isoformat(),
+            "source_service": "restaurant-service",
+            "data": dish_data
+        }
+        
+        try:
+            await self.producer.send_and_wait(
+                "dish.deleted",
+                json.dumps(event).encode('utf-8')
+            )
+            logger.info(f"Dish deleted event sent: {dish_data['dish_id']}")
+        except Exception as e:
+            logger.error(f"Failed to send dish deleted event: {e}")
+
 # Глобальный экземпляр продюсера
 event_producer = KafkaEventProducer()

@@ -261,12 +261,8 @@ async def get_dish(db: AsyncSession, dish_id: int):
     )
     return result.scalar_one_or_none()
 
-async def create_dish(db: AsyncSession, category_id: int, dish: DishCreate):
-    db_dish = Dish(category_id=category_id, **dish.dict())
-    db.add(db_dish)
-    await db.commit()
-    await db.refresh(db_dish)
-    return db_dish
+# NOTE: the create_dish implementation above already emits Kafka events.
+# Remove duplicate non-emitting implementation to avoid overriding the proper one.
 
 
 # Composite queries
