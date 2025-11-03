@@ -21,6 +21,9 @@ class KafkaEventProducer:
         if self.producer:
             await self.producer.stop()
 
+    def is_connected(self):
+        return self.is_connected and self.producer is not None
+
     async def send_dish_created(self, dish_data: dict):
         """Отправка события создания блюда"""
         event = {

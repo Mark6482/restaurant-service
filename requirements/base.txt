@@ -1,0 +1,8 @@
+fastapi==0.117.1
+uvicorn==0.37.0
+sqlalchemy==2.0.43
+asyncpg==0.30.0
+aiokafka==0.10.0
+python-dotenv==1.1.1
+pydantic==2.11.9
+pydantic-settings==2.1.0 
