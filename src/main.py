@@ -7,7 +7,11 @@ from src.db.session import engine, Base
 from src.utils.kafka.producer import event_producer
 from src.api.v1.api import api_router
 
-app = FastAPI(title="Restaurant Service", version="1.0.0")
+app = FastAPI(
+    title="Restaurant Service", 
+    description="Микросервис ресторанов",
+    version="1.0.0"
+    )
 
 @app.on_event("startup")
 async def startup_event():
