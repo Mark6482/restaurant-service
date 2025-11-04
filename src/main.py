@@ -1,49 +1,47 @@
-from fastapi import FastAPI, status
+from fastapi import FastAPI
 import uvicorn
-from fastapi.responses import JSONResponse
-from datetime import datetime
+import logging
 
 from src.db.session import engine, Base
 from src.utils.kafka.producer import event_producer
+from src.utils.kafka.consumer import review_consumer
 from src.api.v1.api import api_router
 
-app = FastAPI(
-    title="Restaurant Service", 
-    description="Микросервис ресторанов",
-    version="1.0.0"
-    )
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Restaurant Service", version="1.0.0")
 
 @app.on_event("startup")
 async def startup_event():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await event_producer.start()
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables created successfully")
+        
+        await event_producer.start()
+        logger.info("Kafka producer started successfully")
+        
+        await review_consumer.start()
+        logger.info("Kafka review consumer started successfully")
+        
+    except Exception as e:
+        logger.error(f"Startup error: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await event_producer.stop()
+    await review_consumer.stop()
+    logger.info("Application shutdown complete")
 
-# Подключаем роутеры
-app.include_router(api_router, prefix="/api/v1")
+# Подключаем все роутеры (включая health)
+app.include_router(api_router)
 
-@app.get("/health")
-async def health_check():
-    """Проверка здоровья сервиса"""
-    health_status = {
-        "status": "healthy", 
-        "service": "restaurant-service",
-        "database": "connected",
-        "kafka": "connected" if event_producer.is_connected() else "disconnected",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    
-    status_code = status.HTTP_200_OK
-    if not event_producer.is_connected():
-        health_status["status"] = "degraded"
-        health_status["kafka"] = "disconnected"
-        status_code = status.HTTP_207_MULTI_STATUS
-    
-    return JSONResponse(content=health_status, status_code=status_code)
+@app.get("/")
+async def root():
+    """Корневой endpoint"""
+    return {"message": "Restaurant Service API", "version": "1.0.0"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001)
