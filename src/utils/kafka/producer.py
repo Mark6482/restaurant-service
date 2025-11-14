@@ -119,5 +119,4 @@ class KafkaEventProducer:
         except Exception as e:
             logger.error(f"Failed to send dish deleted event: {e}")
 
-# Глобальный экземпляр продюсера
 event_producer = KafkaEventProducer()

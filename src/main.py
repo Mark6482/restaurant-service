@@ -7,7 +7,6 @@ from src.utils.kafka.producer import event_producer
 from src.utils.kafka.consumer import review_consumer
 from src.api.v1.api import api_router
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,6 @@ async def shutdown_event():
     await review_consumer.stop()
     logger.info("Application shutdown complete")
 
-# Подключаем все роутеры (включая health)
 app.include_router(api_router)
 
 @app.get("/")

@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 async def create_review(db: AsyncSession, review_data: dict):
     """Создание отзыва из Kafka события"""
     try:
-        # Проверяем, существует ли уже отзыв с таким review_id
         existing_review = await db.execute(
             select(Review).filter(Review.review_id == review_data["review_id"])
         )
@@ -30,7 +29,6 @@ async def create_review(db: AsyncSession, review_data: dict):
         await db.commit()
         await db.refresh(review)
         
-        # Обновляем агрегатные данные ресторана
         await update_restaurant_ratings(db, review_data["restaurant_id"])
         
         logger.info(f"Review created successfully: {review_data['review_id']}")
@@ -53,7 +51,6 @@ async def update_review(db: AsyncSession, review_data: dict):
             logger.warning(f"Review not found: {review_data['review_id']}")
             return None
 
-        # Сохраняем старый рейтинг для обновления агрегатов
         old_rating = review.rating
         
         review.rating = review_data["new_rating"]
@@ -62,7 +59,6 @@ async def update_review(db: AsyncSession, review_data: dict):
         await db.commit()
         await db.refresh(review)
         
-        # Обновляем агрегатные данные ресторана только если изменился рейтинг
         if old_rating != review_data["new_rating"]:
             await update_restaurant_ratings(db, review.restaurant_id)
         
@@ -90,7 +86,6 @@ async def delete_review(db: AsyncSession, review_data: dict):
         await db.delete(review)
         await db.commit()
         
-        # Обновляем агрегатные данные ресторана
         await update_restaurant_ratings(db, restaurant_id)
         
         logger.info(f"Review deleted successfully: {review_data['review_id']}")
@@ -104,7 +99,6 @@ async def delete_review(db: AsyncSession, review_data: dict):
 async def update_restaurant_ratings(db: AsyncSession, restaurant_id: int):
     """Обновление агрегатных данных ресторана (средний рейтинг, количество отзывов)"""
     try:
-        # Получаем средний рейтинг и количество активных отзывов
         result = await db.execute(
             select(
                 func.avg(Review.rating).label('avg_rating'),
@@ -116,7 +110,6 @@ async def update_restaurant_ratings(db: AsyncSession, restaurant_id: int):
         )
         stats = result.first()
         
-        # Обновляем ресторан
         result = await db.execute(
             select(Restaurant).filter(Restaurant.id == restaurant_id)
         )

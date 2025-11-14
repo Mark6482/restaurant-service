@@ -74,7 +74,6 @@ async def delete_menu_category(db: AsyncSession, restaurant_id: int, category_id
     if dishes > 0 and not force:
         raise ValueError(f"Category contains {dishes} dishes. Use force=true to delete anyway.")
     
-    # Если force=True, удаляем все блюда в категории
     if force:
         dishes_to_delete = await db.execute(select(Dish).filter(Dish.category_id == category_id))
         for dish in dishes_to_delete.scalars():

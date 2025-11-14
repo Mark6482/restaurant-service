@@ -11,7 +11,7 @@ class Review(Base):
     review_id = Column(String, unique=True, index=True)  # ID из review-service
     restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=False)
     user_id = Column(Integer, nullable=False)
-    rating = Column(Integer, nullable=False)  # 1-5
+    rating = Column(Integer, nullable=False) 
     comment = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

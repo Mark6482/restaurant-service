@@ -3,10 +3,16 @@ from sqlalchemy.future import select
 from src.db.models.restaurant import Restaurant
 from src.schemas.restaurant import RestaurantCreate, RestaurantUpdate
 from src.utils.kafka.producer import event_producer
+from sqlalchemy import desc
 
 async def get_restaurants(db: AsyncSession, skip: int = 0, limit: int = 100):
     result = await db.execute(
         select(Restaurant)
+        .order_by(
+            desc(Restaurant.average_rating),
+            desc(Restaurant.review_count),
+            Restaurant.id
+        )
         .offset(skip)
         .limit(limit)
     )

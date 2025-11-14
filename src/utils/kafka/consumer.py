@@ -24,13 +24,12 @@ class KafkaReviewConsumer:
                 bootstrap_servers=self.bootstrap_servers,
                 group_id="restaurant-service-reviews-v2",
                 enable_auto_commit=True,
-                auto_offset_reset="earliest",  # ✅ Читать с самого начала
+                auto_offset_reset="earliest", 
             )
             await self.consumer.start()
             self._is_connected = True
             logger.info("Kafka consumer started successfully")
             
-            # Запускаем обработку сообщений в фоне
             asyncio.create_task(self.consume_messages())
             
         except Exception as e:
@@ -56,12 +55,8 @@ class KafkaReviewConsumer:
             async for msg in self.consumer:
                 try:
                     logger.info(f"Received message: topic={msg.topic}, partition={msg.partition}, offset={msg.offset}")
-                    
-                    # Парсим сообщение
                     event_data = json.loads(msg.value.decode('utf-8'))
                     logger.info(f"Parsed event: {event_data['event_type']}")
-                    
-                    # Обрабатываем в зависимости от типа события
                     await self.handle_event(msg.topic, event_data)
                     
                 except Exception as e:
@@ -128,5 +123,4 @@ class KafkaReviewConsumer:
         else:
             logger.error(f"Failed to delete review: {event_data['data']['review_id']}")
 
-# Глобальный экземпляр консьюмера
 review_consumer = KafkaReviewConsumer()
